@@ -12,10 +12,19 @@ import (
 
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/bbr/handlers"
 )
 
+func initLogging() {
+	logger := zap.New(zap.UseDevMode(true))
+	ctrl.SetLogger(logger)
+}
+
 func main() {
+	initLogging()
+	logger := ctrl.Log
 	// grpc server init
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
@@ -26,7 +35,8 @@ func main() {
 
 	extProcPb.RegisterExternalProcessorServer(s, handlers.NewServer(false))
 
-	log.Println("Starting gRPC server on port :50051")
+	//log.Println("Starting gRPC server on port :50051")
+	logger.Info("Starting gRPC server on port :50051")
 
 	// shutdown
 	var gracefulStop = make(chan os.Signal)

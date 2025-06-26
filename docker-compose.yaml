@@ -20,7 +20,16 @@ services:
     - upstream-b
     container_name: envoy
     image: envoyproxy/envoy:v1.31-latest
-    hostname: envoy
+    command:
+    - /usr/local/bin/envoy
+    - --config-path
+    - /etc/envoy/envoy.yaml
+    - --log-level
+    - info
+    - --component-log-level
+    - wasm:debug,http:debug,router:debug
+    - --service-cluster
+    - proxy
     ports:
       - "10000:10000"
     volumes:
@@ -29,6 +38,7 @@ services:
       - envoymesh
   ext-proc:
     container_name: ext-proc
+    image: ${IMAGE:-ext-proc-testing}
     build:
       context: ./ext-proc
     expose:
