@@ -102,5 +102,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: ext_proc
+                      address: ext-proc
                       port_value: 50051
