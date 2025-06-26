@@ -26,7 +26,6 @@ import (
 	extProcPb "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/bbr/metrics"
-	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
 )
 
 const modelHeader = "X-Gateway-Model-Name"
@@ -44,7 +43,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, data map[string]any) ([]
 	modelVal, ok := data["model"]
 	if !ok {
 		metrics.RecordModelNotInBodyCounter()
-		logger.V(logutil.DEFAULT).Info("Request body does not contain model parameter")
+		logger.Info("Request body does not contain model parameter")
 		if s.streaming {
 			ret = append(ret, &eppb.ProcessingResponse{
 				Response: &eppb.ProcessingResponse_RequestHeaders{
@@ -66,7 +65,7 @@ func (s *Server) HandleRequestBody(ctx context.Context, data map[string]any) ([]
 	modelStr, ok := modelVal.(string)
 	if !ok {
 		metrics.RecordModelNotParsedCounter()
-		logger.V(logutil.DEFAULT).Info("Model parameter value is not a string")
+		logger.Info("Model parameter value is not a string")
 		return nil, fmt.Errorf("the model parameter value %v is not a string", modelVal)
 	}
 

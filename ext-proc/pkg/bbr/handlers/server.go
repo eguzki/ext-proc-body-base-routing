@@ -26,7 +26,9 @@ import (
 	"github.com/go-logr/logr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
 	requtil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/request"
 )
@@ -43,9 +45,8 @@ type Server struct {
 
 func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 	ctx := srv.Context()
-	logger := log.FromContext(ctx)
-	loggerVerbose := logger.V(logutil.VERBOSE)
-	loggerVerbose.Info("Processing")
+	logger := ctrl.Log
+	logger.Info("Processing")
 
 	streamedBody := &streamedBody{}
 
@@ -63,7 +64,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 		if recvErr != nil {
 			// This error occurs very frequently, though it doesn't seem to have any impact.
 			// TODO Figure out if we can remove this noise.
-			loggerVerbose.Error(recvErr, "Cannot receive stream request")
+			//logger.Error(recvErr, "Cannot receive stream request")
 			return status.Errorf(codes.Unknown, "cannot receive stream request: %v", recvErr)
 		}
 
@@ -73,17 +74,16 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 		case *extProcPb.ProcessingRequest_RequestHeaders:
 			if s.streaming && !req.GetRequestHeaders().GetEndOfStream() {
 				// If streaming and the body is not empty, then headers are handled when processing request body.
-				loggerVerbose.Info("Received headers, passing off header processing until body arrives...")
+				logger.Info("Received headers, passing off header processing until body arrives...")
 			} else {
 				if requestId := requtil.ExtractHeaderValue(v, requtil.RequestIdHeaderKey); len(requestId) > 0 {
 					logger = logger.WithValues(requtil.RequestIdHeaderKey, requestId)
-					loggerVerbose = logger.V(logutil.VERBOSE)
 					ctx = log.IntoContext(ctx, logger)
 				}
 				responses, err = s.HandleRequestHeaders(req.GetRequestHeaders())
 			}
 		case *extProcPb.ProcessingRequest_RequestBody:
-			loggerVerbose.Info("Incoming body chunk", "body", string(v.RequestBody.Body), "EoS", v.RequestBody.EndOfStream)
+			logger.Info("Incoming body chunk", "body", string(v.RequestBody.Body), "EoS", v.RequestBody.EndOfStream)
 			responses, err = s.processRequestBody(ctx, req.GetRequestBody(), streamedBody, logger)
 		case *extProcPb.ProcessingRequest_RequestTrailers:
 			responses, err = s.HandleRequestTrailers(req.GetRequestTrailers())
@@ -102,7 +102,7 @@ func (s *Server) Process(srv extProcPb.ExternalProcessor_ProcessServer) error {
 		}
 
 		for _, resp := range responses {
-			loggerVerbose.Info("Response generated", "response", resp)
+			logger.Info("Response generated", "response", resp)
 			if err := srv.Send(resp); err != nil {
 				logger.V(logutil.DEFAULT).Error(err, "Send failed")
 				return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
@@ -116,17 +116,15 @@ type streamedBody struct {
 }
 
 func (s *Server) processRequestBody(ctx context.Context, body *extProcPb.HttpBody, streamedBody *streamedBody, logger logr.Logger) ([]*extProcPb.ProcessingResponse, error) {
-	loggerVerbose := logger.V(logutil.VERBOSE)
-
 	var requestBody map[string]interface{}
 	if s.streaming {
 		streamedBody.body = append(streamedBody.body, body.Body...)
 		// In the stream case, we can receive multiple request bodies.
 		if body.EndOfStream {
-			loggerVerbose.Info("Flushing stream buffer")
+			logger.Info("Flushing stream buffer")
 			err := json.Unmarshal(streamedBody.body, &requestBody)
 			if err != nil {
-				logger.V(logutil.DEFAULT).Error(err, "Error unmarshaling request body")
+				logger.Error(err, "Error unmarshaling request body")
 			}
 		} else {
 			return nil, nil
