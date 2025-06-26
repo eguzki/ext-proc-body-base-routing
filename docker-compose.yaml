@@ -1,0 +1,79 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+services:
+  envoy:
+    depends_on:
+    - upstream-a
+    - upstream-b
+    container_name: envoy
+    image: envoyproxy/envoy:v1.31-latest
+    hostname: envoy
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    networks:
+      - envoymesh
+  ext-proc:
+    container_name: ext-proc
+    build:
+      context: ./ext-proc
+    expose:
+    - "50051"
+    networks:
+      - envoymesh
+  upstream-a:
+    depends_on:
+    - upstream-a-backend
+    image: quay.io/openshift-logging/alpine-socat:1.8.0.0
+    container_name: upstream-a
+    command: "-d -d -v -d TCP-LISTEN:80,reuseaddr,fork TCP:upstream-a-backend:3000"
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - envoymesh
+  upstream-b:
+    depends_on:
+    - upstream-b-backend
+    image: quay.io/openshift-logging/alpine-socat:1.8.0.0
+    container_name: upstream-b
+    command: "-d -d -v -d TCP-LISTEN:80,reuseaddr,fork TCP:upstream-b-backend:3000"
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - envoymesh
+  upstream-a-backend:
+    image: quay.io/kuadrant/authorino-examples:talker-api
+    environment:
+      PORT: 3000
+      LOG_LEVEL: debug
+    expose:
+    - "3000"
+    networks:
+      - envoymesh
+  upstream-b-backend:
+    image: quay.io/kuadrant/authorino-examples:talker-api
+    environment:
+      PORT: 3000
+      LOG_LEVEL: debug
+    expose:
+    - "3000"
+    networks:
+      - envoymesh
+networks:
+  envoymesh: {}
